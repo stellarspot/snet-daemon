@@ -155,23 +155,16 @@ func (client *EtcdClient) Delete(key string) error {
 	return err
 }
 
-// EtcdKeyValue contains key and value
-type EtcdKeyValue struct {
-	key   string
-	value string
-}
-
 // CompareAndSwap uses CAS operation to set a value
 func (client *EtcdClient) CompareAndSwap(key string, prevValue string, newValue string) (ok bool, err error) {
-
 	return client.Transaction(
-		[]EtcdKeyValue{EtcdKeyValue{key: key, value: prevValue}},
-		[]EtcdKeyValue{EtcdKeyValue{key: key, value: newValue}},
+		map[string]string{key: prevValue},
+		map[string]string{key: newValue},
 	)
 }
 
 // Transaction uses CAS operation to compare and set multiple key values
-func (client *EtcdClient) Transaction(compare []EtcdKeyValue, swap []EtcdKeyValue) (ok bool, err error) {
+func (client *EtcdClient) Transaction(compare map[string]string, swap map[string]string) (ok bool, err error) {
 
 	log := log.WithField("func", "CompareAndSwap").WithField("client", client)
 
@@ -179,23 +172,23 @@ func (client *EtcdClient) Transaction(compare []EtcdKeyValue, swap []EtcdKeyValu
 	ctx, cancel := context.WithTimeout(context.Background(), client.timeout)
 	defer cancel()
 
-	cmps := make([]clientv3.Cmp, len(compare))
+	cmps := []clientv3.Cmp{}
 
-	for index, cmp := range compare {
-		cmps[index] = clientv3.Compare(clientv3.Value(cmp.key), "=", cmp.value)
+	for key, value := range compare {
+		cmps = append(cmps, clientv3.Compare(clientv3.Value(key), "=", value))
 	}
 
-	ops := make([]clientv3.Op, len(swap))
-	for index, op := range swap {
-		ops[index] = clientv3.OpPut(op.key, op.value)
+	ops := []clientv3.Op{}
+	for key, value := range swap {
+		ops = append(ops, clientv3.OpPut(key, value))
 	}
 
 	response, err := etcdv3.KV.Txn(ctx).If(cmps...).Then(ops...).Commit()
 
 	if err != nil {
 		keys := []string{}
-		for _, keyValue := range compare {
-			keys = append(keys, keyValue.key)
+		for key := range compare {
+			keys = append(keys, key)
 		}
 		log = log.WithField("keys", strings.Join(keys, ", "))
 		log.WithError(err).Error("Unable to compare and swap value by keys")

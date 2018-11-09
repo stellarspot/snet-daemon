@@ -192,16 +192,16 @@ func (suite *EtcdTestSuite) TestEtcdTransaction() {
 	assertGet(suite, key1, expect1)
 	assertGet(suite, key2, expect2)
 
-	ok, err := client.Transaction(
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key1, value: expect1},
-			EtcdKeyValue{key: key2, value: expect2},
-		},
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key2, value: update2},
-			EtcdKeyValue{key: key3, value: update3},
-		},
-	)
+	expect := map[string]string{
+		key1: expect1,
+		key2: expect2,
+	}
+	swap := map[string]string{
+		key2: update2,
+		key3: update3,
+	}
+
+	ok, err := client.Transaction(expect, swap)
 	assert.Nil(t, err)
 	assert.True(t, ok)
 
@@ -209,16 +209,7 @@ func (suite *EtcdTestSuite) TestEtcdTransaction() {
 	assertGet(suite, key2, update2)
 	assertGet(suite, key3, update3)
 
-	ok, err = client.Transaction(
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key1, value: expect1},
-			EtcdKeyValue{key: key2, value: expect2},
-		},
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key2, value: update2},
-			EtcdKeyValue{key: key3, value: update3},
-		},
-	)
+	ok, err = client.Transaction(expect, swap)
 	assert.Nil(t, err)
 	assert.False(t, ok)
 
@@ -226,16 +217,13 @@ func (suite *EtcdTestSuite) TestEtcdTransaction() {
 	assertGet(suite, key2, update2)
 	assertGet(suite, key3, update3)
 
-	ok, err = client.Transaction(
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key1, value: expect1},
-			EtcdKeyValue{key: key2, value: update2},
-			EtcdKeyValue{key: key3, value: update3},
-		},
-		[]EtcdKeyValue{
-			EtcdKeyValue{key: key2, value: expect2},
-		},
-	)
+	expect[key2] = update2
+	expect[key3] = update3
+
+	swap[key2] = expect2
+	delete(swap, key3)
+
+	ok, err = client.Transaction(expect, swap)
 	assert.Nil(t, err)
 	assert.True(t, ok)
 
